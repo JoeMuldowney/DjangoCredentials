@@ -16,7 +16,10 @@ from books.models import Author
 @csrf_exempt
 @require_POST
 def membership(request):
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
 
     username = data.get('username')
     email = data.get('email')
@@ -24,15 +27,22 @@ def membership(request):
     password2 = data.get('password2')
     first_name = data.get('firstname')
     last_name = data.get('lastname')
-    # confirm password and insert a user object
+
     if password1 != password2:
-        return JsonResponse({'success': False},status=401)
-    else:
+        return JsonResponse({'success': False, 'error': 'Passwords do not match'}, status=401)
+
+    try:
         user = User.objects.create_user(
-            username=username, email=email, password=password1, first_name=first_name, last_name=last_name)
-        login_user = authenticate(username=username, password=password1)
-        login(request, login_user, backend=None)
-        return JsonResponse({'success': True, 'user_id': login_user.id}, status=202)
+            username=username,
+            email=email,
+            password=password1,
+            first_name=first_name,
+            last_name=last_name
+        )
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+    return JsonResponse({'success': True, 'user_id': user.id}, status=202)
 
 @csrf_exempt
 @require_http_methods(["PATCH"])
