@@ -11,12 +11,15 @@ from books.models import Book
 from books.models import Author
 
 
-# Create your views here.
+
 
 @csrf_exempt
 @require_POST
 def membership(request):
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
 
     username = data.get('username')
     email = data.get('email')
@@ -24,14 +27,22 @@ def membership(request):
     password2 = data.get('password2')
     first_name = data.get('firstname')
     last_name = data.get('lastname')
-    # confirm password and insert a user object
+
     if password1 != password2:
-        return JsonResponse({'success': False},status=401)
-    else:
+        return JsonResponse({'success': False, 'error': 'Passwords do not match'}, status=401)
+
+    try:
         user = User.objects.create_user(
-            username=username, email=email, password=password1, first_name=first_name, last_name=last_name
+            username=username,
+            email=email,
+            password=password1,
+            first_name=first_name,
+            last_name=last_name
         )
-        return JsonResponse({'success': True}, status=202)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+    return JsonResponse({'success': True, 'user_id': user.id}, status=202)
 
 @csrf_exempt
 @require_http_methods(["PATCH"])
@@ -71,7 +82,8 @@ def member_login(request):
 @require_GET
 def log_status(request):
     if request.user.is_authenticated:
-        return JsonResponse({'is_authenticated': True},status=201)
+        user = request.user
+        return JsonResponse({'is_authenticated': True, 'user_id':user.id},status=200)
     else:
         return JsonResponse({'is_authenticated': False},status=401)
 
@@ -85,7 +97,7 @@ def member_logout(request):
         logout(request)
         return JsonResponse({'success': True}, status=202)
     else:
-        return JsonResponse({'Error': "Not logged in"}, status=400)
+        return JsonResponse({'Error': "Not logged in"}, status=401)
 
 
 @csrf_exempt
@@ -288,6 +300,7 @@ def saved_books_list(request):
 @csrf_exempt
 @login_required()
 def delete_book(request, id):
+
     if request.user.is_authenticated:
         try:
             user = request.user
@@ -295,7 +308,6 @@ def delete_book(request, id):
             book.delete()
 
             return JsonResponse({'success': 'Book removed from saved books'}, status=200)
-
         except:
             return JsonResponse({'error': 'Book does not exist in saved book list'}, status=404)
     else:
@@ -310,7 +322,7 @@ def user_verify(request):
     session_id = request.COOKIES.get('sessionid')
 
     if session_id:
-        # Check if the session ID is valid
+
         if request.session.exists(session_id):
             # Get the user associated with the session
             user_id = request.session.get('_auth_user_id')
@@ -324,5 +336,4 @@ def user_verify(request):
     else:
         # Return a JSON response indicating that the session ID is missing
         return JsonResponse({'success': False, 'error': 'Session ID missing'}, status=400)
-
 
